@@ -95,6 +95,7 @@ function initGame() {
 
 function createBoard() {
     boardElement.innerHTML = '';
+    // Board stores objects: { color: string, type: 'normal'|'bomb'|'star' } or null
     board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null));
 
     for (let r = 0; r < BOARD_SIZE; r++) {
@@ -107,8 +108,6 @@ function createBoard() {
         }
     }
 
-    // Add some initial random blocks (noise) as per requirements
-    // "El tablero ya contiene algunos cuadros rellenos"
     addInitialNoise(5);
 }
 
@@ -118,22 +117,19 @@ function addInitialNoise(count) {
         const r = Math.floor(Math.random() * BOARD_SIZE);
         const c = Math.floor(Math.random() * BOARD_SIZE);
         if (!board[r][c]) {
-            board[r][c] = 'var(--cell-empty)'; // Use a neutral color or random
-            // Actually, let's use a specific color for initial blocks to look "fixed"
-            // But requirements say "fixed" but usually in these games they are clearable.
-            // "son fijos" -> usually means they are just pre-filled blocks that CAN be cleared.
-            // If they were permanent obstacles, it would be very hard.
-            // I'll assume they are normal blocks that just start there.
+            const color = '#b2bec3';
+            board[r][c] = { color: color, type: 'normal' };
+
             const cell = getCell(r, c);
             cell.classList.add('filled');
-            cell.style.backgroundColor = '#b2bec3'; // Greyish for initial
-            board[r][c] = '#b2bec3';
+            cell.style.backgroundColor = color;
             placed++;
         }
     }
 }
 
 function getCell(r, c) {
+    if (r < 0 || r >= BOARD_SIZE || c < 0 || c >= BOARD_SIZE) return null;
     return boardElement.children[r * BOARD_SIZE + c];
 }
 
@@ -141,8 +137,62 @@ function getCell(r, c) {
 
 function spawnPieces() {
     piecesDock.innerHTML = '';
-    // Spawn 1 piece as requested ("Solo me debe aparecer una futura pieza")
-    createDraggablePiece();
+
+    // Random chance for special piece
+    const rand = Math.random();
+    // 10% chance for Bomb, 10% chance for Star, 80% Normal
+    if (rand < 0.1) {
+        createSpecialPiece('bomb');
+    } else if (rand < 0.2) {
+        createSpecialPiece('star');
+    } else {
+        createDraggablePiece();
+    }
+}
+
+function createSpecialPiece(type) {
+    const container = document.createElement('div');
+    container.classList.add('piece-container');
+
+    const pieceEl = document.createElement('div');
+    pieceEl.classList.add('draggable-piece');
+
+    // Special pieces are single blocks 1x1
+    pieceEl.style.gridTemplateRows = `1fr`;
+    pieceEl.style.gridTemplateColumns = `1fr`;
+
+    const cell = document.createElement('div');
+    cell.classList.add('piece-cell');
+
+    let color, shape;
+    if (type === 'bomb') {
+        color = '#333'; // Dark for bomb
+        cell.classList.add('bomb');
+        cell.textContent = '💣';
+    } else {
+        color = '#f1c40f'; // Gold for star
+        cell.classList.add('star');
+        cell.textContent = '⭐';
+    }
+    cell.style.backgroundColor = color;
+    cell.style.display = 'flex';
+    cell.style.justifyContent = 'center';
+    cell.style.alignItems = 'center';
+    cell.style.fontSize = '1.2rem';
+
+    pieceEl.appendChild(cell);
+
+    // Shape is just [[0,0]]
+    shape = [[0, 0]];
+
+    pieceEl.dataset.shape = JSON.stringify(shape);
+    pieceEl.dataset.color = color;
+    pieceEl.dataset.type = type; // Store type
+
+    pieceEl.addEventListener('pointerdown', handleDragStart);
+
+    container.appendChild(pieceEl);
+    piecesDock.appendChild(container);
 }
 
 function createDraggablePiece() {
@@ -153,7 +203,6 @@ function createDraggablePiece() {
     const pieceEl = document.createElement('div');
     pieceEl.classList.add('draggable-piece');
 
-    // Calculate grid dimensions for the piece to set CSS grid
     let maxR = 0, maxC = 0;
     pieceData.shape.forEach(([r, c]) => {
         maxR = Math.max(maxR, r);
@@ -163,15 +212,9 @@ function createDraggablePiece() {
     pieceEl.style.gridTemplateRows = `repeat(${maxR + 1}, 1fr)`;
     pieceEl.style.gridTemplateColumns = `repeat(${maxC + 1}, 1fr)`;
 
-    // Fill grid
-    // We need to map the shape coordinates to grid cells
-    // A simple way is to create a grid of (maxR+1) x (maxC+1)
-    // and fill occupied spots.
-
     for (let r = 0; r <= maxR; r++) {
         for (let c = 0; c <= maxC; c++) {
             const cell = document.createElement('div');
-            // Check if this r,c is in shape
             const isFilled = pieceData.shape.some(([pr, pc]) => pr === r && pc === c);
             if (isFilled) {
                 cell.classList.add('piece-cell');
@@ -183,8 +226,8 @@ function createDraggablePiece() {
 
     pieceEl.dataset.shape = JSON.stringify(pieceData.shape);
     pieceEl.dataset.color = pieceData.color;
+    pieceEl.dataset.type = 'normal';
 
-    // Event Listeners for Drag
     pieceEl.addEventListener('pointerdown', handleDragStart);
 
     container.appendChild(pieceEl);
@@ -194,29 +237,26 @@ function createDraggablePiece() {
 // --- Drag & Drop Logic ---
 
 function handleDragStart(e) {
-    e.preventDefault(); // Prevent scrolling
+    e.preventDefault();
     draggedPiece = e.currentTarget;
     draggedPieceData = {
         shape: JSON.parse(draggedPiece.dataset.shape),
-        color: draggedPiece.dataset.color
+        color: draggedPiece.dataset.color,
+        type: draggedPiece.dataset.type || 'normal'
     };
 
-    // Get initial position to revert if needed
     const rect = draggedPiece.getBoundingClientRect();
     initialPieceX = rect.left;
     initialPieceY = rect.top;
 
-    // Offset to center under finger/mouse
     startX = e.clientX - rect.left;
     startY = e.clientY - rect.top;
 
-    // Move piece to body to allow free dragging over everything
-    // We replace it with a placeholder in the dock to keep layout
     const placeholder = document.createElement('div');
     placeholder.style.width = rect.width + 'px';
     placeholder.style.height = rect.height + 'px';
     draggedPiece.parentNode.replaceChild(placeholder, draggedPiece);
-    draggedPiece.placeholder = placeholder; // Link back
+    draggedPiece.placeholder = placeholder;
 
     document.body.appendChild(draggedPiece);
     draggedPiece.style.position = 'absolute';
@@ -238,29 +278,9 @@ function moveAt(pageX, pageY) {
 function handleDragMove(e) {
     moveAt(e.clientX, e.clientY);
 
-    // Ghost piece logic
-    // 1. Find which cell is under the finger/pointer (top-left of piece)
-    // We approximate the "origin" of the piece (0,0 block) to be near the top-left of the dragged element.
-    // A better approach is to check the element below the center of the first block of the piece.
-
-    // Get the first block's visual offset
-    // Since we are using CSS grid on the piece, the first block (0,0) is at the top-left.
-    // Let's sample the position of the top-left of the dragged piece.
-
     const pieceRect = draggedPiece.getBoundingClientRect();
-    // Sample point: center of the top-left cell of the piece
-    // We assume cell size in dock is smaller, but on board it's bigger.
-    // We need to map screen coordinates to board coordinates.
-
     const boardRect = boardElement.getBoundingClientRect();
     const cellSize = boardRect.width / BOARD_SIZE;
-
-    // Relative position to board
-    // We want the top-left of the piece to snap to a cell
-    // Let's use the center of the piece for better feel? 
-    // No, usually top-left or finger position.
-    // Let's use the finger position relative to the piece start.
-    // Actually, let's try to map the top-left of the piece to the nearest cell.
 
     const relativeX = pieceRect.left - boardRect.left + (cellSize / 2);
     const relativeY = pieceRect.top - boardRect.top + (cellSize / 2);
@@ -290,19 +310,14 @@ function handleDragEnd(e) {
     const targetCol = parseInt(draggedPiece.dataset.targetCol);
 
     if (!isNaN(targetRow) && !isNaN(targetCol)) {
-        // Place piece
         placePiece(targetRow, targetCol, draggedPieceData);
-        // Remove from DOM
         draggedPiece.remove();
-        // Remove placeholder
-        draggedPiece.placeholder.parentNode.remove(); // Remove the container too
+        draggedPiece.placeholder.parentNode.remove();
 
-        // Check if dock is empty
         if (piecesDock.children.length === 0) {
             spawnPieces();
         }
 
-        // Check Game Over
         if (checkGameOver()) {
             setTimeout(() => {
                 finalScoreElement.textContent = score;
@@ -311,7 +326,6 @@ function handleDragEnd(e) {
         }
 
     } else {
-        // Revert
         returnToDock();
     }
 
@@ -320,8 +334,7 @@ function handleDragEnd(e) {
 }
 
 function returnToDock() {
-    // Animate back
-    const piece = draggedPiece; // Capture current piece
+    const piece = draggedPiece;
     const placeholder = piece.placeholder;
     const rect = placeholder.getBoundingClientRect();
 
@@ -345,12 +358,12 @@ function returnToDock() {
 // --- Game Logic ---
 
 function isValidPlacement(r, c, shape) {
-    // Check bounds and overlap
     for (let [dr, dc] of shape) {
         const nr = r + dr;
         const nc = c + dc;
 
         if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) return false;
+        // Check if the cell is already occupied by any type of block
         if (board[nr][nc] !== null) return false;
     }
     return true;
@@ -359,7 +372,7 @@ function isValidPlacement(r, c, shape) {
 function showGhost(r, c, shape) {
     for (let [dr, dc] of shape) {
         const cell = getCell(r + dr, c + dc);
-        cell.classList.add('ghost');
+        if (cell) cell.classList.add('ghost');
     }
 }
 
@@ -369,23 +382,39 @@ function clearGhost() {
 }
 
 function placePiece(r, c, pieceData) {
-    // Update Board Data & UI
     for (let [dr, dc] of pieceData.shape) {
         const nr = r + dr;
         const nc = c + dc;
-        board[nr][nc] = pieceData.color;
+        // Store object
+        board[nr][nc] = { color: pieceData.color, type: pieceData.type };
 
         const cell = getCell(nr, nc);
         cell.style.backgroundColor = pieceData.color;
         cell.classList.add('filled');
+
+        // Add special class
+        if (pieceData.type === 'bomb') {
+            cell.classList.add('bomb');
+            cell.textContent = '💣';
+            cell.style.display = 'flex';
+            cell.style.justifyContent = 'center';
+            cell.style.alignItems = 'center';
+            cell.style.fontSize = '1.2rem';
+        }
+        if (pieceData.type === 'star') {
+            cell.classList.add('star');
+            cell.textContent = '⭐';
+            cell.style.display = 'flex';
+            cell.style.justifyContent = 'center';
+            cell.style.alignItems = 'center';
+            cell.style.fontSize = '1.2rem';
+        }
+
         cell.classList.add('anim-pop');
         setTimeout(() => cell.classList.remove('anim-pop'), 300);
     }
 
-    // Add Score for placement (number of blocks)
     updateScore(score + pieceData.shape.length);
-
-    // Check Lines
     checkLines();
 }
 
@@ -413,43 +442,90 @@ function checkLines() {
         if (full) colsToClear.push(c);
     }
 
-    // Clear them
     const allCellsToClear = new Set();
+    let explosionCells = new Set();
+    let bonusMultiplier = 1;
+
+    // Identify cells to clear and check for specials
+    const checkSpecial = (r, c) => {
+        const cellData = board[r][c];
+        if (!cellData) return;
+
+        if (cellData.type === 'bomb') {
+            // Trigger explosion: 5x5 area (radius 2)
+            for (let br = r - 2; br <= r + 2; br++) {
+                for (let bc = c - 2; bc <= c + 2; bc++) {
+                    if (br >= 0 && br < BOARD_SIZE && bc >= 0 && bc < BOARD_SIZE) {
+                        explosionCells.add(`${br},${bc}`);
+                    }
+                }
+            }
+        }
+        if (cellData.type === 'star') {
+            bonusMultiplier += 1; // Add to multiplier
+        }
+    };
 
     rowsToClear.forEach(r => {
-        for (let c = 0; c < BOARD_SIZE; c++) allCellsToClear.add(`${r},${c}`);
+        for (let c = 0; c < BOARD_SIZE; c++) {
+            allCellsToClear.add(`${r},${c}`);
+            checkSpecial(r, c);
+        }
     });
     colsToClear.forEach(c => {
-        for (let r = 0; r < BOARD_SIZE; r++) allCellsToClear.add(`${r},${c}`);
+        for (let r = 0; r < BOARD_SIZE; r++) {
+            allCellsToClear.add(`${r},${c}`);
+            checkSpecial(r, c);
+        }
     });
+
+    // Merge explosion cells
+    explosionCells.forEach(key => allCellsToClear.add(key));
 
     if (allCellsToClear.size > 0) {
         linesCleared = rowsToClear.length + colsToClear.length;
+        // If explosion happened but no lines (unlikely as explosion needs line clear), 
+        // but if explosion clears extra lines, we don't count them as "lines cleared" for base score,
+        // but we count blocks cleared.
 
-        // Visual clear
         allCellsToClear.forEach(key => {
             const [r, c] = key.split(',').map(Number);
             const cell = getCell(r, c);
-            cell.classList.add('clearing');
-            // Logic clear
+            if (cell) {
+                cell.classList.add('clearing');
+                // Remove special classes
+                cell.classList.remove('bomb', 'star');
+                cell.textContent = ''; // Remove icon text
+                cell.style.display = ''; // Reset display
+                cell.style.justifyContent = '';
+                cell.style.alignItems = '';
+                cell.style.fontSize = '';
+            }
             board[r][c] = null;
         });
 
-        // Wait for animation then reset style
         setTimeout(() => {
             allCellsToClear.forEach(key => {
                 const [r, c] = key.split(',').map(Number);
                 const cell = getCell(r, c);
-                cell.classList.remove('clearing');
-                cell.classList.remove('filled');
-                cell.style.backgroundColor = '';
+                if (cell) {
+                    cell.classList.remove('clearing');
+                    cell.classList.remove('filled');
+                    cell.style.backgroundColor = '';
+                }
             });
         }, 400);
 
-        // Bonus Score
-        // 10 points per line, multiplied by number of lines
-        const bonus = linesCleared * 10 * linesCleared;
-        updateScore(score + bonus);
+        // Scoring
+        // Base: 10 * lines * lines
+        // Bonus: Blocks cleared * 2
+        // Multiplier: Star
+        let points = (linesCleared * 10 * linesCleared) + (allCellsToClear.size * 2);
+        if (linesCleared === 0 && allCellsToClear.size > 0) points = allCellsToClear.size * 5; // Just explosion
+
+        points = Math.floor(points * bonusMultiplier);
+
+        updateScore(score + points);
     }
 }
 
@@ -464,24 +540,22 @@ function updateScore(newScore) {
 }
 
 function checkGameOver() {
-    // Check if ANY available piece can fit ANYWHERE
     const pieces = document.querySelectorAll('.piece-container .draggable-piece');
-    if (pieces.length === 0) return false; // Should not happen as we respawn immediately
+    if (pieces.length === 0) return false;
 
     for (let piece of pieces) {
         const shape = JSON.parse(piece.dataset.shape);
 
-        // Try every position
         for (let r = 0; r < BOARD_SIZE; r++) {
             for (let c = 0; c < BOARD_SIZE; c++) {
                 if (isValidPlacement(r, c, shape)) {
-                    return false; // Found a valid move
+                    return false;
                 }
             }
         }
     }
 
-    return true; // No moves found
+    return true;
 }
 
 // --- Start ---
