@@ -336,6 +336,46 @@ header {
 
 /* Responsive adjustments */
 
+/* Mobile Optimizations */
+@media (max-width: 767px) {
+    .app-container {
+        padding: 10px;
+        gap: 10px;
+        /* Reduced gap */
+    }
+
+    header {
+        padding: 10px 15px;
+        border-radius: 12px;
+    }
+
+    #score,
+    #best-score {
+        font-size: 1.4rem;
+    }
+
+    .score-label {
+        font-size: 0.7rem;
+    }
+
+    .dock-area {
+        height: 120px;
+        /* Reduced height */
+        min-height: 120px;
+    }
+
+    .piece-container {
+        width: 80px;
+        height: 80px;
+    }
+
+    .piece-cell {
+        width: 18px;
+        /* Smaller pieces in dock */
+        height: 18px;
+    }
+}
+
 /* Tablet Landscape & Desktop */
 @media (min-width: 768px) and (orientation: landscape) {
     .app-container {
