@@ -157,12 +157,14 @@ header {
 }
 
 .cell.bomb::after {
-    content: '💣';
+    content: '\01F4A3';
+    /* Bomb Emoji */
     filter: drop-shadow(0 0 2px black);
 }
 
 .cell.star::after {
-    content: '⭐';
+    content: '\2B50';
+    /* Star Emoji */
     filter: drop-shadow(0 0 2px gold);
     animation: spin 3s linear infinite;
 }
@@ -219,6 +221,31 @@ header {
     animation: flashRow 0.5s forwards;
 }
 
+@keyframes explosion {
+    0% {
+        transform: scale(1);
+        background-color: #ff4757;
+        box-shadow: 0 0 0 rgba(255, 71, 87, 0);
+        z-index: 10;
+    }
+
+    50% {
+        transform: scale(1.4);
+        background-color: #ff6b81;
+        box-shadow: 0 0 20px 10px rgba(255, 71, 87, 0.8);
+        z-index: 10;
+    }
+
+    100% {
+        transform: scale(0);
+        opacity: 0;
+    }
+}
+
+.cell.exploding {
+    animation: explosion 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
 /* Dock Area */
 .dock-area {
     height: 140px;
@@ -265,6 +292,11 @@ header {
     cursor: grabbing;
     transform: scale(1.1);
     filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.5));
+}
+
+.draggable-piece.snapped {
+    filter: drop-shadow(0 0 15px var(--primary-color));
+    transform: scale(1.05);
 }
 
 .piece-cell {

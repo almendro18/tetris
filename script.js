@@ -276,27 +276,126 @@ function moveAt(pageX, pageY) {
 }
 
 function handleDragMove(e) {
-    moveAt(e.clientX, e.clientY);
+    // Default movement (follow mouse)
+    let moveX = e.clientX - startX;
+    let moveY = e.clientY - startY;
+
+    // We will update the style at the end, potentially overriding with snap
 
     const pieceRect = draggedPiece.getBoundingClientRect();
+    // Note: pieceRect will be based on the *current* style.left/top. 
+    // To calculate potential snap, we need to know where the piece *would be* if we just followed the mouse.
+    // However, since we update on every move event, the current position is close enough to the mouse 
+    // for the purpose of finding the grid cell. 
+    // Better approach: Calculate "virtual" position based on mouse, then find grid cell, then snap if close.
+
+    // Virtual position (where the piece would be without snap)
+    const currentLeft = e.clientX - startX;
+    const currentTop = e.clientY - startY;
+
     const boardRect = boardElement.getBoundingClientRect();
     const cellSize = boardRect.width / BOARD_SIZE;
 
-    const relativeX = pieceRect.left - boardRect.left + (cellSize / 2);
-    const relativeY = pieceRect.top - boardRect.top + (cellSize / 2);
+    // Calculate center of the piece relative to board to find the "intended" cell
+    // We use the initial offset of the piece relative to the mouse to find the top-left of the piece
+    // piece.left = mouse.x - startX
+    // piece.top = mouse.y - startY
+
+    // Relative to board:
+    const relativeX = currentLeft - boardRect.left + (cellSize / 2); // + half cell for better centering feel
+    const relativeY = currentTop - boardRect.top + (cellSize / 2);
 
     const col = Math.floor(relativeX / cellSize);
     const row = Math.floor(relativeY / cellSize);
 
     clearGhost();
 
+    let isSnapped = false;
+    let targetRow = row;
+    let targetCol = col;
+    let valid = false;
+
+    // Check exact position first
     if (isValidPlacement(row, col, draggedPieceData.shape)) {
-        showGhost(row, col, draggedPieceData.shape);
-        draggedPiece.dataset.targetRow = row;
-        draggedPiece.dataset.targetCol = col;
+        valid = true;
+    } else {
+        // Smart Snap: Search neighbors
+        let minDistance = Infinity;
+        let bestR = -1;
+        let bestC = -1;
+
+        // Search radius 1
+        for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+                if (dr === 0 && dc === 0) continue;
+
+                const nr = row + dr;
+                const nc = col + dc;
+
+                if (isValidPlacement(nr, nc, draggedPieceData.shape)) {
+                    // Calculate distance to this neighbor's center
+                    const neighborX = boardRect.left + (nc * cellSize) + (cellSize / 2);
+                    const neighborY = boardRect.top + (nr * cellSize) + (cellSize / 2);
+
+                    // Distance from piece center (approx)
+                    const pieceCenterX = boardRect.left + relativeX;
+                    const pieceCenterY = boardRect.top + relativeY;
+
+                    const dist = Math.hypot(pieceCenterX - neighborX, pieceCenterY - neighborY);
+
+                    if (dist < minDistance) {
+                        minDistance = dist;
+                        bestR = nr;
+                        bestC = nc;
+                    }
+                }
+            }
+        }
+
+        // If we found a valid neighbor within a reasonable distance (e.g., < 1.0 cell size)
+        // Using 1.0 because if it's further than that, it's probably not "intended"
+        if (bestR !== -1 && minDistance < cellSize * 1.0) {
+            targetRow = bestR;
+            targetCol = bestC;
+            valid = true;
+            isSnapped = true; // Force snap for smart correction
+        }
+    }
+
+    if (valid) {
+        showGhost(targetRow, targetCol, draggedPieceData.shape);
+        draggedPiece.dataset.targetRow = targetRow;
+        draggedPiece.dataset.targetCol = targetCol;
+
+        const targetBoardX = boardRect.left + (targetCol * cellSize);
+        const targetBoardY = boardRect.top + (targetRow * cellSize);
+
+        // Distance check (if not already forced by smart snap)
+        if (!isSnapped) {
+            const dist = Math.hypot(currentLeft - targetBoardX, currentTop - targetBoardY);
+            const snapThreshold = cellSize * 0.5;
+            if (dist < snapThreshold) {
+                isSnapped = true;
+            }
+        }
+
+        if (isSnapped) {
+            moveX = targetBoardX;
+            moveY = targetBoardY;
+        }
+
     } else {
         delete draggedPiece.dataset.targetRow;
         delete draggedPiece.dataset.targetCol;
+    }
+
+    draggedPiece.style.left = moveX + 'px';
+    draggedPiece.style.top = moveY + 'px';
+
+    if (isSnapped) {
+        draggedPiece.classList.add('snapped');
+    } else {
+        draggedPiece.classList.remove('snapped');
     }
 }
 
@@ -393,21 +492,12 @@ function placePiece(r, c, pieceData) {
         cell.classList.add('filled');
 
         // Add special class
+        // Add special class
         if (pieceData.type === 'bomb') {
             cell.classList.add('bomb');
-            cell.textContent = '💣';
-            cell.style.display = 'flex';
-            cell.style.justifyContent = 'center';
-            cell.style.alignItems = 'center';
-            cell.style.fontSize = '1.2rem';
         }
         if (pieceData.type === 'star') {
             cell.classList.add('star');
-            cell.textContent = '⭐';
-            cell.style.display = 'flex';
-            cell.style.justifyContent = 'center';
-            cell.style.alignItems = 'center';
-            cell.style.fontSize = '1.2rem';
         }
 
         cell.classList.add('anim-pop');
@@ -492,7 +582,13 @@ function checkLines() {
             const [r, c] = key.split(',').map(Number);
             const cell = getCell(r, c);
             if (cell) {
-                cell.classList.add('clearing');
+                // Check if this cell was part of an explosion
+                if (explosionCells.has(`${r},${c}`)) {
+                    cell.classList.add('exploding');
+                } else {
+                    cell.classList.add('clearing');
+                }
+
                 // Remove special classes
                 cell.classList.remove('bomb', 'star');
                 cell.textContent = ''; // Remove icon text
@@ -510,11 +606,12 @@ function checkLines() {
                 const cell = getCell(r, c);
                 if (cell) {
                     cell.classList.remove('clearing');
+                    cell.classList.remove('exploding'); // Fix: Remove explosion class
                     cell.classList.remove('filled');
                     cell.style.backgroundColor = '';
                 }
             });
-        }, 400);
+        }, 600); // Increased to match explosion animation duration
 
         // Scoring
         // Base: 10 * lines * lines
