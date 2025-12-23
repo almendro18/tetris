@@ -390,20 +390,29 @@ header {
 
 /* Mobile Landscape */
 @media (max-width: 767px) and (orientation: landscape) {
+
+    /* ... (Keep other styles) ... */
     .app-container {
-        flex-direction: row;
+        display: grid;
+        grid-template-columns: 1fr 100px;
+        /* Board | Dock */
+        grid-template-rows: auto 1fr;
+        /* Header | Content */
+        grid-template-areas:
+            "header header"
+            "board dock";
         padding: 10px;
-        gap: 15px;
+        gap: 10px;
         max-width: 100%;
     }
 
     header {
-        position: absolute;
-        top: 10px;
-        left: 20px;
-        z-index: 10;
+        grid-area: header;
         padding: 5px 15px;
         background: rgba(20, 20, 35, 0.8);
+        position: static;
+        /* Reset absolute */
+        width: auto;
     }
 
     #score,
@@ -416,35 +425,44 @@ header {
     }
 
     .game-area {
-        flex: 1;
+        grid-area: board;
         height: 100%;
-        padding-top: 0;
-        justify-content: flex-end;
-        /* Push board slightly right/center */
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        /* Center board in its area */
+        align-items: center;
+        min-height: 0;
     }
 
     .board {
-        height: 85%;
-        /* Fit within small height */
+        height: 90%;
+        /* Maximize height */
         width: auto;
-        /* Maintain aspect ratio */
-        max-height: 300px;
-        /* Cap height */
+        max-height: none;
+        aspect-ratio: 1/1;
     }
 
     .dock-area {
+        grid-area: dock;
         flex-direction: column;
-        width: 100px;
-        height: 80%;
-        min-height: auto;
-        padding-bottom: 0;
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        padding-bottom: 20px;
+        /* Add padding at bottom */
         background: rgba(20, 20, 35, 0.6);
+        justify-content: flex-end;
+        /* Align to bottom */
     }
 
     .pieces-dock {
         flex-direction: column;
         width: 100%;
-        height: 100%;
+        height: auto;
+        /* Allow it to shrink */
+        justify-content: flex-end;
+        gap: 10px;
     }
 
     .piece-container {
@@ -463,57 +481,67 @@ header {
 @media (min-width: 768px) and (orientation: landscape),
 (min-width: 1024px) {
     .app-container {
-        flex-direction: row;
-        /* Side by side */
+        display: grid;
+        grid-template-columns: 1fr 200px;
+        /* Board | Dock */
+        grid-template-rows: auto 1fr;
+        /* Header | Content */
+        grid-template-areas:
+            "header header"
+            "board dock";
         max-width: 1200px;
-        /* Increased for iPad Pro */
-        align-items: center;
-        padding: 40px;
+        padding: 30px;
+        gap: 20px;
     }
 
     header {
-        position: absolute;
-        top: 20px;
-        left: 40px;
-        right: 40px;
-        z-index: 10;
+        grid-area: header;
+        position: static;
         width: auto;
+        margin-bottom: 10px;
     }
 
     .game-area {
-        flex: 2;
+        grid-area: board;
         height: 100%;
-        padding-top: 80px;
-        /* Space for header */
+        padding: 0;
         display: flex;
         justify-content: center;
         align-items: center;
     }
 
+    .board {
+        height: 85vh;
+        /* Use viewport height to size board */
+        max-height: 600px;
+        width: auto;
+    }
+
     .dock-area {
-        flex: 1;
-        height: 80%;
-        /* Vertical dock */
+        grid-area: dock;
         flex-direction: column;
-        width: 200px;
-        /* Fixed width for dock column */
-        min-width: 200px;
-        max-width: 250px;
-        min-height: auto;
-        padding-bottom: 0;
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        padding-bottom: 40px;
+        /* Add padding at bottom */
+        justify-content: flex-end;
+        /* Align to bottom */
     }
 
     .pieces-dock {
         flex-direction: column;
-        height: 100%;
-        justify-content: space-evenly;
+        height: auto;
+        justify-content: flex-end;
         align-items: center;
         width: 100%;
+        gap: 20px;
     }
 
     .piece-container {
         width: 100%;
         height: 30%;
+        max-height: 150px;
     }
 }
 
