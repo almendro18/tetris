@@ -388,10 +388,9 @@ header {
     }
 }
 
-/* Mobile Landscape */
-@media (max-width: 767px) and (orientation: landscape) {
-
-    /* ... (Keep other styles) ... */
+/* Mobile Landscape (Compact) */
+/* Targets all phones in landscape (iPhone Pro Max is ~430px height) */
+@media (orientation: landscape) and (max-height: 600px) {
     .app-container {
         display: grid;
         grid-template-columns: 1fr 100px;
@@ -401,23 +400,25 @@ header {
         grid-template-areas:
             "header header"
             "board dock";
-        padding: 10px;
-        gap: 10px;
+        padding: 5px 20px;
+        /* Reduced padding */
+        gap: 5px;
         max-width: 100%;
+        height: 100dvh;
     }
 
     header {
         grid-area: header;
-        padding: 5px 15px;
+        padding: 5px 10px;
         background: rgba(20, 20, 35, 0.8);
         position: static;
-        /* Reset absolute */
         width: auto;
+        min-height: 40px;
     }
 
     #score,
     #best-score {
-        font-size: 1.2rem;
+        font-size: 1.1rem;
     }
 
     .score-label {
@@ -430,13 +431,12 @@ header {
         padding: 0;
         display: flex;
         justify-content: center;
-        /* Center board in its area */
         align-items: center;
         min-height: 0;
     }
 
     .board {
-        height: 90%;
+        height: 95%;
         /* Maximize height */
         width: auto;
         max-height: none;
@@ -449,37 +449,35 @@ header {
         width: 100%;
         height: 100%;
         min-height: 0;
-        padding-bottom: 20px;
-        /* Add padding at bottom */
+        padding-bottom: 10px;
         background: rgba(20, 20, 35, 0.6);
         justify-content: flex-end;
-        /* Align to bottom */
     }
 
     .pieces-dock {
         flex-direction: column;
         width: 100%;
         height: auto;
-        /* Allow it to shrink */
         justify-content: flex-end;
-        gap: 10px;
+        gap: 8px;
     }
 
     .piece-container {
-        width: 70px;
-        height: 70px;
+        width: 60px;
+        /* Smaller pieces */
+        height: 60px;
     }
 
     .piece-cell {
-        width: 16px;
-        height: 16px;
+        width: 14px;
+        height: 14px;
     }
 }
 
-/* Tablet Landscape & Desktop */
-/* Trigger on Landscape Tablet OR Large Screens (iPad Pro Portrait / Desktop) */
-@media (min-width: 768px) and (orientation: landscape),
-(min-width: 1024px) {
+/* Tablet Landscape & Desktop (Spacious) */
+/* Targets tablets and desktops with enough vertical space */
+@media (min-width: 768px) and (orientation: landscape) and (min-height: 601px),
+(min-width: 1024px) and (min-height: 601px) {
     .app-container {
         display: grid;
         grid-template-columns: 1fr 200px;
